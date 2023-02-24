@@ -237,6 +237,14 @@ impl Window {
         self.pressed_buttons.borrow().clone()
     }
 
+    pub fn set_pressed_keys(&self, pressed_keys: HashSet<Key>) {
+        *self.pressed_keys.borrow_mut() = pressed_keys;
+    }
+
+    pub fn set_pressed_buttons(&self, pressed_buttons: HashSet<MouseButton>) {
+        *self.pressed_buttons.borrow_mut() = pressed_buttons;
+    }
+
     pub fn mouse_pos(&self) -> vec2<f64> {
         self.mouse_pos.get()
     }
