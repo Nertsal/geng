@@ -134,6 +134,9 @@ pub enum Key {
     LAlt,
     RAlt,
 
+    LBracket,
+    RBracket,
+
     Left,
     Right,
     Up,
@@ -145,6 +148,15 @@ pub enum Key {
     Home,
     Insert,
     Delete,
+
+    Comma,
+    Period,
+    Apostrophe,
+    Semicolon,
+    Slash,
+    Grave,
+    Minus,
+    Equals,
 
     F1,
     F2,

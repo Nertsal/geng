@@ -61,6 +61,9 @@ impl Convert<String> for Key {
             "AltLeft" => LAlt,
             "AltRight" => RAlt,
 
+            "BracketLeft" => Key::LBracket,
+            "BracketRight" => Key::RBracket,
+
             "ArrowLeft" => Left,
             "ArrowRight" => Right,
             "ArrowUp" => Up,
@@ -72,6 +75,15 @@ impl Convert<String> for Key {
             "Delete" => Delete,
             "Home" => Home,
             "End" => End,
+
+            "Comma" => Key::Comma,
+            "Period" => Key::Period,
+            "Quote" => Key::Apostrophe,
+            "Semicolon" => Key::Semicolon,
+            "Slash" => Key::Slash,
+            "Backquote" => Key::Grave,
+            "Minus" => Key::Minus,
+            "Equal" => Key::Equals,
 
             "F1" => F1,
             "F2" => F2,

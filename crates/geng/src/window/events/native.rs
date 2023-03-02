@@ -131,6 +131,9 @@ fn from_glutin_key(key: glutin::event::VirtualKeyCode) -> Key {
         GKey::LAlt => Key::LAlt,
         GKey::RAlt => Key::RAlt,
 
+        GKey::LBracket => Key::LBracket,
+        GKey::RBracket => Key::RBracket,
+
         GKey::Left => Key::Left,
         GKey::Right => Key::Right,
         GKey::Up => Key::Up,
@@ -142,6 +145,15 @@ fn from_glutin_key(key: glutin::event::VirtualKeyCode) -> Key {
         GKey::Delete => Key::Delete,
         GKey::Home => Key::Home,
         GKey::End => Key::End,
+
+        GKey::Comma => Key::Comma,
+        GKey::Period => Key::Period,
+        GKey::Apostrophe => Key::Apostrophe,
+        GKey::Semicolon => Key::Semicolon,
+        GKey::Slash => Key::Slash,
+        GKey::Grave => Key::Grave,
+        GKey::Minus => Key::Minus,
+        GKey::Equals => Key::Equals,
 
         GKey::F1 => Key::F1,
         GKey::F2 => Key::F2,
