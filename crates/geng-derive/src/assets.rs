@@ -20,6 +20,8 @@ struct Field {
     #[darling(default)]
     path: Option<String>,
     #[darling(default)]
+    ext: Option<String>,
+    #[darling(default)]
     postprocess: Option<syn::Path>,
     #[darling(default, map = "parse_syn")]
     load_with: Option<syn::Expr>,
@@ -46,7 +48,7 @@ impl DeriveInput {
             return quote! {
                 impl #impl_generics geng::LoadAsset #ty_generics for #ident #where_clause {
                     fn load(geng: &Geng, path: &std::path::Path) -> geng::AssetFuture<Self> {
-                        let json = <String as geng::LoadAsset>::load(geng, path);
+                        let json = geng.load_asset::<String>(path);
                         async move {
                             let json = json.await?;
                             Ok(serde_json::from_str(&json)?)
@@ -77,13 +79,20 @@ impl DeriveInput {
             if let Some(expr) = &field.load_with {
                 return quote!(#expr);
             }
+            let ext = match &field.ext {
+                Some(ext) => quote!(Some(#ext)),
+                None => quote!(None),
+            };
             let ident = field.ident.as_ref().unwrap();
             let ty = &field.ty;
-            let mut loader =  if let Some(range) = &field.range {
-                let path = field.path.as_ref().expect("Path needs to be specified for ranged assets");
+            let mut loader = if let Some(range) = &field.range {
+                let path = field
+                    .path
+                    .as_ref()
+                    .expect("Path needs to be specified for ranged assets");
                 quote! {
                     futures::future::try_join_all((#range).map(|i| {
-                        geng::LoadAsset::load(geng, &base_path.join(#path.replace("*", &i.to_string())))
+                        geng.load_asset(base_path.join(#path.replace("*", &i.to_string())))
                     }))
                 }
             } else {
@@ -91,7 +100,7 @@ impl DeriveInput {
                     Some(path) => quote! { #path },
                     None => quote! {{
                         let mut path = stringify!(#ident).to_owned();
-                        if let Some(ext) = <#ty as geng::LoadAsset>::DEFAULT_EXT {
+                        if let Some(ext) = #ext.or(<#ty as geng::LoadAsset>::DEFAULT_EXT) {
                             path.push('.');
                             path.push_str(ext);
                         }
@@ -99,7 +108,7 @@ impl DeriveInput {
                     }},
                 };
                 quote! {
-                    <#ty as geng::LoadAsset>::load(geng, &base_path.join(#path))
+                    geng.load_asset::<#ty>(base_path.join(#path))
                 }
             };
             if let Some(postprocess) = &field.postprocess {

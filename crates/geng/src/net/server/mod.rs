@@ -13,17 +13,17 @@ struct Handler<T: App> {
     client: Option<T::Client>,
 }
 
-struct BackgroundSender<T> {
-    sender: std::sync::mpsc::Sender<T>,
+struct BackgroundSender {
+    sender: std::sync::mpsc::Sender<Arc<Vec<u8>>>,
 }
 
-impl<T: Message> BackgroundSender<T> {
+impl BackgroundSender {
     fn new(ws_sender: ws::Sender) -> Self {
-        let (sender, receiver) = std::sync::mpsc::channel();
+        let (sender, receiver) = std::sync::mpsc::channel::<Arc<Vec<u8>>>();
         std::thread::spawn(move || {
-            while let Ok(message) = receiver.recv() {
+            while let Ok(data) = receiver.recv() {
                 ws_sender
-                    .send(ws::Message::Binary(serialize_message(message)))
+                    .send(ws::Message::Binary(data.deref().clone()))
                     .expect("Failed to send message");
             }
         });
@@ -31,9 +31,9 @@ impl<T: Message> BackgroundSender<T> {
     }
 }
 
-impl<T: Message> Sender<T> for BackgroundSender<T> {
-    fn send(&mut self, message: T) {
-        self.sender.send(message).expect("Failed to send message");
+impl<T: Message> Sender<T> for BackgroundSender {
+    fn send_serialized(&mut self, data: Arc<Vec<u8>>) {
+        self.sender.send(data).expect("Failed to send message");
     }
 }
 
@@ -48,12 +48,18 @@ impl<T: App> ws::Handler for Handler<T> {
         Ok(())
     }
     fn on_message(&mut self, message: ws::Message) -> ws::Result<()> {
-        let message = deserialize_message(&message.into_data());
+        let message = match deserialize_message(&message.into_data()) {
+            Ok(message) => message,
+            Err(e) => {
+                return Err(ws::Error::new(ws::ErrorKind::Protocol, e.to_string()));
+            }
+        };
         trace!("Received message from client: {:?}", message);
-        self.client
-            .as_mut()
-            .expect("Received a message before handshake")
-            .handle(message);
+        if let Some(client) = &mut self.client {
+            client.handle(message);
+        } else {
+            error!("WUT! received a message before handshake");
+        }
         Ok(())
     }
 }
@@ -101,7 +107,22 @@ impl ServerHandle {
 impl<T: App> Server<T> {
     pub fn new(app: T, addr: impl std::net::ToSocketAddrs + Debug + Copy) -> Self {
         let factory = Factory::new(app);
-        let ws = ws::WebSocket::new(factory).unwrap();
+        let ws = ws::Builder::new()
+            .with_settings(ws::Settings {
+                max_connections: 10000,
+                // fragments_capacity: todo!(),
+                // fragments_grow: todo!(),
+                // max_fragment_size: todo!(),
+                // in_buffer_capacity: todo!(),
+                // in_buffer_grow: todo!(),
+                // out_buffer_capacity: todo!(),
+                // out_buffer_grow: todo!(),
+                panic_on_internal: false,
+                tcp_nodelay: true,
+                ..default()
+            })
+            .build(factory)
+            .unwrap();
         let ws = match ws.bind(addr) {
             Ok(ws) => ws,
             Err(e) => {
