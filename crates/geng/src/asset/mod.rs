@@ -115,6 +115,17 @@ impl Geng {
             .boxed_local()
     }
 
+    pub fn load_asset_ext<T: LoadAsset>(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        ext: Option<impl AsRef<str>>,
+    ) -> AssetFuture<T> {
+        match ext.as_ref().map(|s| s.as_ref()).or(T::DEFAULT_EXT) {
+            Some(ext) => self.load_asset(path.as_ref().with_extension(ext)),
+            None => self.load_asset(path),
+        }
+    }
+
     pub fn set_loading_progress_title(&self, title: &str) {
         // TODO: native
         #[cfg(target_arch = "wasm32")]
@@ -166,20 +177,33 @@ impl Geng {
 
 pub struct Hot<T> {
     current: RefCell<T>,
-    updates: RefCell<Pin<Box<dyn Stream<Item = T>>>>,
+    geng: Geng,
+    path: std::path::PathBuf,
+    need_update: Arc<std::sync::atomic::AtomicBool>,
+    update: RefCell<Option<AssetFuture<T>>>,
     #[cfg(not(target_arch = "wasm32"))]
     #[allow(dead_code)] // This is here for delaying the drop of the watcher
     watcher: notify::RecommendedWatcher,
 }
 
-impl<T> Hot<T> {
+impl<T: LoadAsset> Hot<T> {
     pub fn get(&self) -> Ref<T> {
         if let Ok(mut current) = self.current.try_borrow_mut() {
-            let mut updates = self.updates.borrow_mut();
-            if let std::task::Poll::Ready(Some(new)) = updates.poll_next_unpin(
-                &mut std::task::Context::from_waker(futures::task::noop_waker_ref()),
-            ) {
-                *current = new;
+            let mut update = self.update.borrow_mut();
+            if let Some(future) = update.deref_mut() {
+                if let std::task::Poll::Ready(result) = future.as_mut().poll(
+                    &mut std::task::Context::from_waker(futures::task::noop_waker_ref()),
+                ) {
+                    *update = None;
+                    match result {
+                        Ok(new) => *current = new,
+                        Err(e) => error!("{e}"),
+                    }
+                    self.need_update
+                        .store(false, std::sync::atomic::Ordering::SeqCst);
+                }
+            } else if self.need_update.load(std::sync::atomic::Ordering::SeqCst) {
+                *update = Some(self.geng.load_asset(&self.path))
             }
         }
         self.current.borrow()
@@ -191,16 +215,16 @@ impl<T: LoadAsset> LoadAsset for Hot<T> {
         let geng = geng.clone();
         let path = path.to_owned();
         async move {
-            let (mut sender, receiver) = futures::channel::mpsc::channel::<()>(1);
+            let need_update = Arc::new(std::sync::atomic::AtomicBool::new(false));
             #[cfg(not(target_arch = "wasm32"))]
             let watcher = {
                 use notify::Watcher;
+                let need_update = need_update.clone();
                 let mut watcher =
                     notify::recommended_watcher(move |result: notify::Result<notify::Event>| {
                         let event = result.unwrap();
-                        info!("update: {event:?}");
                         if event.kind.is_modify() {
-                            let _ = futures::executor::block_on(sender.send(()));
+                            need_update.store(true, std::sync::atomic::Ordering::SeqCst);
                         }
                     })
                     .unwrap();
@@ -211,21 +235,12 @@ impl<T: LoadAsset> LoadAsset for Hot<T> {
                 watcher
             };
             let initial = geng.load_asset(&path).await?;
-            let updates =
-                receiver
-                    .then(move |()| geng.load_asset(&path))
-                    .filter_map(|result| async move {
-                        match result {
-                            Ok(value) => Some(value),
-                            Err(e) => {
-                                error!("{e}");
-                                None
-                            }
-                        }
-                    });
             Ok(Self {
+                need_update,
+                geng: geng.clone(),
+                path,
                 current: RefCell::new(initial),
-                updates: RefCell::new(updates.boxed_local()),
+                update: RefCell::new(None),
                 #[cfg(not(target_arch = "wasm32"))]
                 watcher,
             })
