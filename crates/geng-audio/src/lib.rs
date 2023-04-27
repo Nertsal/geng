@@ -40,6 +40,11 @@ impl Audio {
             inner: platform::Sound::decode_bytes(&self.inner, data).await?,
         })
     }
+    pub fn from_raw(&self, data: Vec<f32>, sample_rate: f32) -> Sound {
+        Sound {
+            inner: platform::Sound::from_raw(&self.inner, data, sample_rate),
+        }
+    }
 }
 
 pub struct Sound {

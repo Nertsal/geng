@@ -118,6 +118,16 @@ impl Sound {
             looped: false,
         }
     }
+    pub fn from_raw(context: &Rc<Context>, data: Vec<f32>, sample_rate: f32) -> Self {
+        let buffer = context
+            .context
+            .create_buffer(1, data.len() as u32, sample_rate)
+            .expect("Failed to create an audio buffer");
+        buffer
+            .copy_to_channel(&data, 0)
+            .expect("Failed to copy audio data to buffer");
+        Self::from_audio_buffer(context, buffer)
+    }
     pub fn duration(&self) -> time::Duration {
         time::Duration::from_secs_f64(self.inner.duration())
     }

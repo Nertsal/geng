@@ -125,9 +125,10 @@ impl Context {
 
 pub struct Sound {
     context: Rc<Context>,
-    source: rodio::source::Buffered<
-        rodio::source::UniformSourceIterator<rodio::Decoder<std::io::Cursor<Vec<u8>>>, i16>,
-    >,
+    source: rodio::source::Buffered<Box<dyn rodio::Source<Item = f32> + Send>>,
+    // rodio::source::Buffered<
+    //     rodio::source::UniformSourceIterator<rodio::Decoder<std::io::Cursor<Vec<u8>>>, i16>,
+    // >,
     pub looped: bool,
 }
 
@@ -138,14 +139,24 @@ impl Sound {
     pub async fn decode_bytes(context: &Rc<Context>, data: Vec<u8>) -> anyhow::Result<Self> {
         Ok(Self {
             context: context.clone(),
-            source: rodio::Source::buffered(rodio::source::UniformSourceIterator::new(
+            source: rodio::Source::buffered(Box::new(rodio::source::UniformSourceIterator::new(
                 rodio::Decoder::new(std::io::Cursor::new(data))
                     .context("Failed to decode audio")?,
                 context.config.channels(), // TODO: what if more than 2 channels? we are screwed? LUL
                 context.config.sample_rate().0,
-            )),
+            ))),
             looped: false,
         })
+    }
+    pub fn from_raw(context: &Rc<Context>, data: Vec<f32>, sample_rate: f32) -> Self {
+        Self {
+            context: context.clone(),
+            source: rodio::Source::buffered(Box::new(raw::RawSource::new(
+                sample_rate as u32,
+                data,
+            ))),
+            looped: false,
+        }
     }
     pub fn duration(&self) -> time::Duration {
         rodio::Source::total_duration(&self.source).unwrap().into()
@@ -347,7 +358,7 @@ where
 pub struct SoundEffect {
     spatial_params: Arc<Mutex<Option<SpatialParams>>>,
     sink: Option<rodio::Sink>,
-    source: Option<Box<dyn rodio::Source<Item = i16> + Send>>,
+    source: Option<Box<dyn rodio::Source<Item = f32> + Send>>,
 }
 
 impl SoundEffect {
@@ -403,5 +414,55 @@ impl Drop for SoundEffect {
             sink.stop();
         }
         sink.detach();
+    }
+}
+
+mod raw {
+    use rodio::Source;
+    use std::time::Duration;
+
+    #[derive(Clone)]
+    pub struct RawSource<T: rodio::Sample = f32> {
+        data: std::sync::Arc<Vec<T>>,
+        sample_rate: u32,
+        num_sample: usize,
+    }
+
+    impl<T: rodio::Sample> RawSource<T> {
+        pub fn new(sample_rate: u32, data: Vec<T>) -> Self {
+            Self {
+                data: std::sync::Arc::new(data),
+                sample_rate,
+                num_sample: 0,
+            }
+        }
+    }
+
+    impl<T: rodio::Sample> Iterator for RawSource<T> {
+        type Item = T;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let sample = self.data.get(self.num_sample).copied();
+            self.num_sample += 1;
+            sample
+        }
+    }
+
+    impl<T: rodio::Sample> Source for RawSource<T> {
+        fn current_frame_len(&self) -> Option<usize> {
+            None
+        }
+
+        fn channels(&self) -> u16 {
+            1
+        }
+
+        fn sample_rate(&self) -> u32 {
+            self.sample_rate
+        }
+
+        fn total_duration(&self) -> Option<Duration> {
+            None
+        }
     }
 }
