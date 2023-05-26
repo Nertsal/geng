@@ -22,16 +22,16 @@ impl geng::State for State {
             framebuffer,
             &geng::PixelPerfectCamera, // using pixel coordinates
             "Hello, World!",
-            framebuffer.size().map(|x| x as f32 / 2.0), // in the middle of the screen
-            geng::TextAlign::CENTER,                    // center-aligned
-            32.0,                                       // 32 pixels high
+            vec2::splat(geng::TextAlign::CENTER), // center-aligned
+            mat3::translate(framebuffer.size().map(|x| x as f32 / 2.0)) * mat3::scale_uniform(32.0), // in the middle of the screen 32 pixels high
             Rgba::WHITE,
         );
     }
 }
 
 fn main() {
-    logger::init().unwrap();
+    logger::init();
+    geng::setup_panic_handler();
     let geng = Geng::new("Hello, World!");
     let state = State::new(&geng);
     geng.run(state);

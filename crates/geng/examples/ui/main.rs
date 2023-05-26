@@ -7,13 +7,14 @@ mod vec2slider;
 use custom::CustomWidget;
 use vec2slider::Vec2Slider;
 
-#[derive(geng::Assets)]
+#[derive(geng::asset::Load)]
 pub struct Assets {
     texture: ugli::Texture,
     shader: ugli::Program,
 }
 
 struct State {
+    #[allow(dead_code)]
     geng: Geng,
     assets: Assets,
     counter: i32,
@@ -119,11 +120,13 @@ impl geng::State for State {
 }
 
 fn main() {
-    logger::init().unwrap();
+    logger::init();
+    geng::setup_panic_handler();
     let geng = Geng::new("Geng UI Demo!");
     geng.clone().run_loading(async move {
         let assets = geng
-            .load_asset(run_dir().join("assets"))
+            .asset_manager()
+            .load(run_dir().join("assets"))
             .await
             .expect("Failed to load assets");
         State::new(&geng, assets)

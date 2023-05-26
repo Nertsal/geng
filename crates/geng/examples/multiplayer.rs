@@ -1,5 +1,5 @@
-use geng::net::simple as simple_net;
 use geng::{prelude::*, TextAlign};
+use geng_net_simple as simple_net;
 
 type PlayerId = usize;
 
@@ -148,53 +148,42 @@ impl geng::State for Game {
         };
         let model = self.model.get();
         for player in &model.players {
-            self.geng.draw_2d_helper().circle(
-                framebuffer,
-                &camera,
-                player.position,
-                1.0,
-                Rgba::GRAY,
-            );
+            self.geng
+                .draw2d()
+                .circle(framebuffer, &camera, player.position, 1.0, Rgba::GRAY);
         }
-        self.geng.draw_2d_helper().circle(
-            framebuffer,
-            &camera,
-            self.player.position,
-            1.0,
-            Rgba::WHITE,
-        );
+        self.geng
+            .draw2d()
+            .circle(framebuffer, &camera, self.player.position, 1.0, Rgba::WHITE);
         self.geng.default_font().draw(
             framebuffer,
             &geng::PixelPerfectCamera,
             &format!("Server time: {:.1}", model.current_time),
-            vec2(0.0, 0.0),
-            TextAlign::LEFT,
-            32.0,
+            vec2::splat(TextAlign::LEFT),
+            mat3::translate(vec2(0.0, 0.0)) * mat3::scale_uniform(32.0),
             Rgba::WHITE,
         );
         self.geng.default_font().draw(
             framebuffer,
             &geng::PixelPerfectCamera,
             &format!("Client time: {:.1}", self.current_time),
-            vec2(0.0, 32.0),
-            TextAlign::LEFT,
-            32.0,
+            vec2::splat(TextAlign::LEFT),
+            mat3::translate(vec2(0.0, 32.0)) * mat3::scale_uniform(32.0),
             Rgba::WHITE,
         );
         self.geng.default_font().draw(
             framebuffer,
             &geng::PixelPerfectCamera,
             &format!("traffic: {}", self.traffic_watcher),
-            vec2(0.0, 32.0 * 2.0),
-            TextAlign::LEFT,
-            32.0,
+            vec2::splat(TextAlign::LEFT),
+            mat3::translate(vec2(0.0, 32.0 * 2.0)) * mat3::scale_uniform(32.0),
             Rgba::WHITE,
         );
     }
 }
 
 fn main() {
-    logger::init().unwrap();
-
-    geng::net::simple::run("Multiplayer", Model::new, Game::new);
+    logger::init();
+    geng::setup_panic_handler();
+    simple_net::run("Multiplayer", Model::new, Game::new);
 }

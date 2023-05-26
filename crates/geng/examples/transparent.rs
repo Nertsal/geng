@@ -17,16 +17,16 @@ impl geng::State for State {
             framebuffer,
             &geng::PixelPerfectCamera,
             "Hello, World!",
-            framebuffer.size().map(|x| x as f32 / 2.0),
-            geng::TextAlign::CENTER,
-            32.0,
+            vec2::splat(geng::TextAlign::CENTER),
+            mat3::translate(framebuffer.size().map(|x| x as f32 / 2.0)) * mat3::scale_uniform(32.0),
             Rgba::WHITE,
         );
     }
 }
 
 fn main() {
-    logger::init().unwrap();
+    logger::init();
+    geng::setup_panic_handler();
     let geng = Geng::new_with(geng::ContextOptions {
         title: "Transparent".to_owned(),
         transparency: true,

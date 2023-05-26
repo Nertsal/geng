@@ -22,7 +22,7 @@ jobs:
 
       - name: Install things
         if: matrix.platform.channel == 'linux'
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libudev-dev
 
       - name: Install Rust toolchain
         uses: actions-rs/toolchain@v1
@@ -49,9 +49,6 @@ jobs:
           profile: minimal
           target: wasm32-unknown-unknown
 
-      - name: Install wasm-bindgen
-        run: cargo install wasm-bindgen-cli
-
       - name: Test
         run: cargo check --workspace --exclude cargo-geng --target wasm32-unknown-unknown
 
@@ -60,7 +57,9 @@ jobs:
       - test
       - test-web
     name: Pages
-    if: github.ref == 'refs/heads/main' && github.repository_owner == 'kuviman'
+    permissions:
+      contents: write
+    if: github.ref == 'refs/heads/main' && github.repository_owner == 'geng-engine'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -73,9 +72,6 @@ jobs:
           profile: minimal
           target: wasm32-unknown-unknown
 
-      - name: Install wasm-bindgen
-        run: cargo install wasm-bindgen-cli
-
       - name: Build examples
         run: |
           mkdir -p website/static/examples
@@ -83,7 +79,7 @@ jobs:
           for example in crates/geng/examples/*; do
             example=$(basename $example)
             example=${example%.rs}
-            cargo geng build --release --target wasm32-unknown-unknown -p geng --example $example
+            cargo geng-local build --release --target wasm32-unknown-unknown -p geng --example $example
             mv target/geng website/static/examples/$example
             examples_list="$examples_list\"$example\","
           done
@@ -101,7 +97,7 @@ jobs:
     needs:
       - test
       - test-web
-    if: github.ref == 'refs/heads/main' && github.repository_owner == 'kuviman'
+    if: github.ref == 'refs/heads/main' && github.repository_owner == 'geng-engine'
     name: Docker
     runs-on: ubuntu-latest
     steps:
@@ -111,6 +107,7 @@ jobs:
         uses: docker/build-push-action@v1
         with:
           path: .
+          build_args: TARGETS=web
           repository: kuviman/geng
           tags: latest
           username: ${{ secrets.DOCKER_USERNAME }}

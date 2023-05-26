@@ -42,7 +42,7 @@ impl Default for WebGLContextOptions {
 #[cfg(target_arch = "wasm32")]
 impl Ugli {
     pub fn create_webgl(canvas: &web_sys::HtmlCanvasElement, options: WebGLContextOptions) -> Self {
-        let context_options = JsValue::from_serde(&options).unwrap();
+        let context_options = serde_wasm_bindgen::to_value(&options).unwrap();
         let webgl;
         if let Some(context) = canvas
             .get_context_with_context_options("webgl", &context_options)
@@ -72,12 +72,12 @@ impl Ugli {
 
 #[cfg(not(target_arch = "wasm32"))]
 impl Ugli {
-    pub fn create_from_glutin(glutin_context: &glutin::Context<glutin::PossiblyCurrent>) -> Self {
+    pub fn create_from_glutin<F: Fn(&str) -> *const std::os::raw::c_void>(
+        get_proc_address: F,
+    ) -> Self {
         let ugli = Ugli {
             inner: Rc::new(UgliImpl {
-                raw: raw::Context::new(|symbol| {
-                    glutin_context.get_proc_address(symbol) as *const c_void
-                }),
+                raw: raw::Context::new(get_proc_address),
                 size: Cell::new(vec2(1, 1)),
                 phantom_data: PhantomData,
             }),
@@ -90,12 +90,10 @@ impl Ugli {
 impl Ugli {
     pub fn init(&self) {
         let gl = &self.inner.raw;
-        info!("GL version: {:?}", gl.get_version_string());
+        log::info!("GL version: {:?}", gl.get_version_string());
         gl.enable(raw::DEPTH_TEST);
         #[cfg(not(target_arch = "wasm32"))]
         gl.enable(raw::PROGRAM_POINT_SIZE);
-        #[cfg(target_os = "windows")]
-        gl.enable(raw::POINT_SPRITE);
         gl.pixel_store(raw::UNPACK_ALIGNMENT, 1);
         self.check();
     }
